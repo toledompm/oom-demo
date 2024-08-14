@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"runtime"
 	"time"
 )
 
@@ -25,22 +26,30 @@ func main() {
 	}
 }
 
-// Allocates and uses a lot of memory
 func oom() {
-	var usedMemory [][]byte
+	var chunks [][]byte
 	var totalUsedBytes int = 0
 
-	for j := 0; j < 1000; j++ {
-		memory := make([]byte, 1024*1024*256)
-		for i := range memory {
-			memory[i] = 1
-		}
-		usedMemory = append(usedMemory, memory)
-		totalUsedBytes += 1024 * 1024 * 256
+	malloc_size := 1024 * 1024 * 256
+	chunk := make([]byte, malloc_size)
 
-		fmt.Printf("Used %.2f GB\n", float64(totalUsedBytes)/1024/1024/1024)
-		time.Sleep(1 * time.Second)
+	for i := 0; i < malloc_size; i++ {
+		chunk[i] = byte('x')
 	}
+
+	for i := 0; i < 1000; i++ {
+		tmp := make([]byte, malloc_size)
+		copy(tmp, chunk)
+		chunks = append(chunks, tmp)
+
+		totalUsedBytes += malloc_size
+		fmt.Printf("Used %.2f GB\n", float64(totalUsedBytes)/1024/1024/1024)
+
+		var m runtime.MemStats
+		runtime.ReadMemStats(&m)
+		fmt.Printf("HeapAlloc: %v bytes, Sys: %v bytes\n", m.HeapAlloc, m.Sys)
+	}
+
 }
 
 func overcommit() {
@@ -50,7 +59,13 @@ func overcommit() {
 		memory := make([]byte, 1024*1024*512)
 		usedMemory = append(usedMemory, memory)
 		totalUsedBytes += 1024 * 1024 * 512
-		fmt.Printf("Used %.2f GB\n", float64(totalUsedBytes)/1024/1024/1024)
+
+		fmt.Printf("Allocated %.2f GB\n", float64(totalUsedBytes)/1024/1024/1024)
+
+		var m runtime.MemStats
+		runtime.ReadMemStats(&m)
+		fmt.Printf("HeapAlloc: %v bytes, Sys: %v bytes\n", m.HeapAlloc, m.Sys)
+
 		time.Sleep(1 * time.Second)
 	}
 }
